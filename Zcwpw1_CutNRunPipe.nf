@@ -11,10 +11,10 @@ if (params.help) {
   log.info " "
   log.info "USAGE: "
   log.info "------------------------------------------------------------------------- "
-  log.info "nextflow run Zcwpw1_CutNRunPipe.groovy \\"
+  log.info "nextflow run Zcwpw1_CutNRunPipe.nf \\"
   log.info " -with-trace -with-timeline -with-report"
   log.info " "
-  log.info "HELP: nextflow run Zcwpw1_CutNRunPipe.groovy --help"
+  log.info "HELP: nextflow run Zcwpw1_CutNRunPipe.nf --help"
   log.info " "
   log.info "================================================================================================================="
   log.info "Required Arguments:"
@@ -39,6 +39,7 @@ params.debugmode      = false
 //params.genomedir        = "${params.accessorydir}/genomeFiles/"
 //params.annotationdir    = "${params.accessorydir}/annotation/"
 params.projectdir      	      = "./"
+
 params.accessorydir	          = "${params.projectdir}/accessoryFiles"
 params.bamdir     	          = "${params.accessorydir}/bam/"
 params.codedir 	              = "${params.accessorydir}/scripts/"
@@ -63,6 +64,8 @@ def mm10w1ks100               = "${params.genomedir}/mm10_w1k_s100.bed"
 params.hmWidth     	          = 1000
 params.wcWidth         	      = 500
 
+params.getData                = false
+
 //output and tempory directories
 log.info "===================================================================="
 log.info "Mohamed Zcwpw1 CutNRun Pipeline: Kevin Brick : August 02 2019 "
@@ -78,31 +81,61 @@ log.info "heatmap width    : ${params.hmWidth} bp"
 log.info " "
 log.info "--------------------------------------------------------------------"
 
+//Get accessory files and aligned BAMs if necessary
+
+if (params.getData){
+  process getAccessoryFiles {
+
+      scratch '/lscratch/$SLURM_JOBID'
+      clusterOptions ' --gres=lscratch:200 '
+      echo true
+      cpus 1
+      memory "8G"
+
+   	  time { 4.hour }
+      errorStrategy { 'retry' }
+      maxRetries 1
+
+      publishDir params.accessorydir, mode: 'copy', overwrite: true
+
+      input:
+
+      output:
+      file('*') into accessoryFilesData
+
+   	  script:
+   	  """
+      wget http://hpc.nih.gov/~brickkm/zcwpw1/zcwpw1accessoryFiles.tar.gz
+      gunzip zcwpw1accessoryFiles.tar.gz
+      rm zcwpw1accessoryFiles.tar.gz
+      """
+    }
+}
 // Channel of BAMs
 Channel
 	.fromPath("${params.bamdir}/*.bam")
-	.ifEmpty { exit 1, "BAM files not found or mis-named" }
+	.ifEmpty { exit 1, "BAM files not found or mis-named. Try running pipeline with --getData" }
 	.into {bamFiles; bamFiles_a; bamFiles_b}
 
 // Channel of q30 BAMs
 Channel
   .fromPath("${params.bamdir}/*.q30.bam")
-  .ifEmpty { exit 1, "q30 BAM files not found or mis-named" }
+  .ifEmpty { exit 1, "q30 BAM files not found or mis-named. Try running pipeline with --getData" }
   .into {bamQ30Files; bamQ30Files_a; bamQ30Files_b}
 
 // Channel of q30 BAMs
 Channel
   .fromPath("${params.accessorydir}/publishedH3K4me3/*.q30.bam")
-  .ifEmpty { exit 1, "q30 BAM files not found or mis-named" }
+  .ifEmpty { exit 1, "q30 BAM files not found or mis-named. Try running pipeline with --getData "}
   .into {bamQ30Pub_a; bamQ30Pub_b; bamQ30Pub_c}
 
 def spotBAMs  = bamQ30Pub_a.join(bamQ30Files_a, remainder: true)
 def spotBAMs2 = bamQ30Pub_b.join(bamQ30Files_b, remainder: true)
 
-//Create timeCourse input channels
+//Create CUTnRUN input channels
 Channel
      .fromPath("${params.bamdir}/Zc*.q30.bam")
-     .ifEmpty { exit 1, "BAM files not found or mis-named" }
+     .ifEmpty { exit 1, "q30 BAM files not found or mis-named. Try running pipeline with --getData "}
      .map { sample -> tuple(file(getGFPbam(sample)), file(getGFPbai(sample)), file(getK4m3bam(sample)), file(getK4m3bai(sample)), getStrainName(sample), file(getZcwbai(sample)),  file(getZcwbam(sample))) }
 		 .into {bamTC; bamTCb}
 
@@ -167,7 +200,7 @@ process getAnnotationFiles {
     module 'bedtools/2.27.1'
     module 'R/3.5.2'
     module 'meme/5.0.1'
-    module 'ucsc/373'
+    module 'ucsc/388'
 
  	  time { 4.hour }
     errorStrategy { 'retry' }
@@ -400,7 +433,7 @@ process getSpo11OligoData {
   memory "8G"
 
   module 'bedtools/2.27.1'
-	module 'ucsc/373'
+	module 'ucsc/388'
 
   time { 2.hour }
   errorStrategy { 'retry' }
@@ -464,7 +497,7 @@ if (params.prdm9BG){
 			module 'sratoolkit/2.9.2'
 			module 'deeptools/3.0.1'
 			module 'picard/2.9.2'
-		  module 'ucsc/373'
+		  module 'ucsc/388'
 
 		  time { 12.hour }
 		  errorStrategy { 'retry' }
@@ -536,10 +569,10 @@ process makeBigWigs {
 	tag {bam}
 
 	module 'samtools/1.9'
-	module 'picard/2.17.11'
+	module 'picard/2.9.2'
 	module 'bedtools/2.27.1'
 	module 'deeptools/3.0.1'
-	module 'ucsc/373'
+	module 'ucsc/388'
 
   publishDir params.outdirBW , mode: 'copy', overwrite: true, pattern: '*bigwig'
 
@@ -573,9 +606,9 @@ process callZcwpw1Hotspots {
 	tag {strain}
 
 	module 'macs/2.1.2'
-	module 'picard/2.17.11'
+	module 'picard/2.9.2'
 	module 'bedtools/2.27.1'
-	module 'ucsc/373'
+	module 'ucsc/388'
 
   publishDir params.outdirPeaks , mode: 'copy', overwrite: true
 
@@ -623,9 +656,9 @@ process callH3K4me3Peaks {
 	tag {strain}
 
 	module 'macs/2.1.2'
-	module 'picard/2.17.11'
+	module 'picard/2.9.2'
 	module 'bedtools/2.27.1'
-	module 'ucsc/373'
+	module 'ucsc/388'
 
   publishDir params.outdirPeaks , mode: 'copy', overwrite: true
 
@@ -660,7 +693,7 @@ process checkPeakOverlaps {
 
 	tag {strain}
 
-	module 'picard/2.17.11'
+	module 'picard/2.9.2'
 	module 'bedtools/2.27.1'
 	module 'R/3.5.2'
 
@@ -1032,9 +1065,9 @@ process checkZcwpw1Vstrength {
 
   tag {strain}
 
-  module 'picard/2.17.11'
+  module 'picard/2.9.2'
   module 'bedtools/2.27.1'
-  module 'ucsc/373'
+  module 'ucsc/388'
   module 'R/3.5.2'
 
   publishDir params.outdirPeaks , mode: 'copy', overwrite: true, pattern: '*tab'
@@ -1135,7 +1168,7 @@ process getSPOTvals {
 
 	tag {bam}
 
-	module 'picard/2.17.11'
+	module 'picard/2.9.2'
 	module 'bedtools/2.27.1'
 	module 'R/3.5.2'
 
@@ -1207,31 +1240,4 @@ process gatherSPOTvals {
 
 	R --vanilla <drawSPoTTables.R
   """
-  }
-
-//// UNCOMMENT THIS PROCESS IF YOU WANT TO MODIFY PIPELINE AND ASSURE IT DOES NOT COMPLETE !!
-//// VERY USEFUL FOR TWEAKING THINGS & DEBUGGING
-if (params.debugmode){
-  process failNoGood {
-    scratch '/lscratch/$SLURM_JOBID'
-    clusterOptions ' --gres=lscratch:4'
-    echo true
-    cpus 1
-    memory '1g'
-
-    time { 0.05.hour }
-
-    input:
-    file failta from hmCompOutPNG.collect()
-		file failtb from overlapTable.collect()
-		file failtc from strengthTable.collect()
-
-    script:
-    """
-    ## Clean up .Renviron
-    grep -vP "KBPIPE(WORK|OUT)DIR" ~/.Renviron  >~/.Renviron
-
-    bedtools ls proon
-    """
-    }
   }
