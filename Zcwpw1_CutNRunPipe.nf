@@ -43,9 +43,12 @@ params.projectdir      	      = "./"
 params.accessorydir	          = "${params.projectdir}/accessoryFiles"
 params.bamdir     	          = "${params.accessorydir}/bam/"
 params.codedir 	              = "${params.accessorydir}/scripts/"
+params.confdir 	              = "${params.accessorydir}/nxfConfig/"
 params.genomedir    	        = "${params.accessorydir}/genomeFiles/"
-params.prdm9Dir               = "${params.accessorydir}/prdm9CHIPSeq/"
-params.k4m312dpp              = "${params.accessorydir}/publishedH3K4me3/H3K4me3_12dpp_B6_Paigen_rep1_SRR1035576.q30.bam"
+params.prdm9dir               = "${params.accessorydir}/prdm9CHIPSeq/"
+params.motifdir               = "${params.accessorydir}/PRDM9motif/"
+params.k4m3dir                = "${params.accessorydir}/publishedH3K4me3"
+params.k4m312dpp              = "${params.k4m3dir}/H3K4me3_12dpp_B6_Paigen_rep1_SRR1035576.q30.bam"
 
 params.outdir      		        = "./output"
 params.outdirAnnot 		        = "${params.outdir}/annotation"
@@ -81,8 +84,62 @@ log.info "heatmap width    : ${params.hmWidth} bp"
 log.info " "
 log.info "--------------------------------------------------------------------"
 
-//Get accessory files and aligned BAMs if necessary
+def getZcwbam( file ) {
+  def nm="${file.name}"
+  def nRet = nm.replaceFirst(/Zcwpw1/,"${params.bamdir}/Zcwpw1")
+  println("type = $nRet")
+  return nRet
+ }
 
+def getZcwbai( file ) {
+  def nm="${file.name}"
+  def nRet = nm.replaceFirst(/Zcwpw1(.+)bam/,"${params.bamdir}/Zcwpw1\$1bam.bai")
+  println("type = $nRet")
+  return nRet
+ }
+
+def getGFPbam( file ) {
+  def nm="${file.name}"
+  def nRet = nm.replaceFirst(/Zcwpw1/,"${params.bamdir}/GFP_Control")
+  println("type = $nRet")
+  return nRet
+ }
+
+def getIDX( file ) {
+  def nm="${file.name}"
+  def nRet = nm.replaceFirst(/.bam/,".bam.bai")
+  return nRet
+  }
+
+def getGFPbai( file ) {
+    def nm="${file.name}"
+    def nRet = nm.replaceFirst(/Zcwpw1(.+)bam/,"${params.bamdir}/GFP_Control\$1bam.bai")
+    println("type = $nRet")
+    return nRet
+  }
+
+def getK4m3bam( file ) {
+  def nm="${file.name}"
+  def nRet = nm.replaceFirst(/Zcwpw1/,"${params.bamdir}/H3K4me3")
+  println("type = $nRet")
+  return nRet
+ }
+
+def getK4m3bai( file ) {
+    def nm="${file.name}"
+    def nRet = nm.replaceFirst(/Zcwpw1(.+)bam/,"${params.bamdir}/H3K4me3\$1bam.bai")
+    println("type = $nRet")
+    return nRet
+  }
+
+def getStrainName( file ) {
+  def nm="${file.name}"
+  def nRet = nm.replaceFirst(/Zc.+_(B6xCST|B6).+bam/,"\$1")
+  println("type = $nRet")
+  return nRet
+ }
+
+//Get accessory files and aligned BAMs if necessary
 if (params.getData){
   process getAccessoryFiles {
 
@@ -96,97 +153,75 @@ if (params.getData){
       errorStrategy { 'retry' }
       maxRetries 1
 
-      publishDir params.accessorydir, mode: 'copy', overwrite: true
 
+      publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/bam/*'
+      publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/genomeFiles/*'
+      publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/publishedH3K4me3/*'
+      publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/prdm9CHIPSeq/*'
+      publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/nxfConfig/*'
+      publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/scripts/*'
+      publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/PRDM9motif/*'
       input:
 
       output:
-      file('*') into accessoryFilesData
+      file('accessoryFiles/bam/*bam')                   into (bamFiles, bamFiles_a, bamFiles_b)
+      file('accessoryFiles/bam/*q30.bam')               into (bamQ30Files, bamQ30Files_a, bamQ30Files_b)
+      file('accessoryFiles/bam/Zc*.q30.bam')            into bamTCinit
+      file('accessoryFiles/genome/*fa')                 into (genomeFAfile, genomeFAfile_b)
+      file('accessoryFiles/publishedH3K4me3/*.q30.bam') into (bamQ30Pub_a, bamQ30Pub_b, bamQ30Pub_c)
+      file('accessoryFiles')                            into (accFolder)
 
    	  script:
    	  """
       wget http://hpc.nih.gov/~brickkm/zcwpw1/zcwpw1accessoryFiles.tar.gz
-      gunzip zcwpw1accessoryFiles.tar.gz
-      rm zcwpw1accessoryFiles.tar.gz
+      tar -zxvf zcwpw1accessoryFiles.tar.gz
       """
     }
-}
-// Channel of BAMs
-Channel
-	.fromPath("${params.bamdir}/*.bam")
-	.ifEmpty { exit 1, "BAM files not found or mis-named. Try running pipeline with --getData" }
-	.into {bamFiles; bamFiles_a; bamFiles_b}
+}else{
+  // Channel of BAMs
+  Channel
+  	.fromPath("${params.bamdir}/*.bam")
+  	.ifEmpty { exit 1, "BAM files not found or mis-named. Try running pipeline with --getData" }
+  	.into {bamFiles; bamFiles_a; bamFiles_b}
 
-// Channel of q30 BAMs
-Channel
-  .fromPath("${params.bamdir}/*.q30.bam")
-  .ifEmpty { exit 1, "q30 BAM files not found or mis-named. Try running pipeline with --getData" }
-  .into {bamQ30Files; bamQ30Files_a; bamQ30Files_b}
+  // Channel of q30 BAMs
+  Channel
+    .fromPath("${params.bamdir}/*.q30.bam")
+    .ifEmpty { exit 1, "q30 BAM files not found or mis-named. Try running pipeline with --getData" }
+    .into {bamQ30Files; bamQ30Files_a; bamQ30Files_b}
 
-// Channel of q30 BAMs
-Channel
-  .fromPath("${params.accessorydir}/publishedH3K4me3/*.q30.bam")
-  .ifEmpty { exit 1, "q30 BAM files not found or mis-named. Try running pipeline with --getData "}
-  .into {bamQ30Pub_a; bamQ30Pub_b; bamQ30Pub_c}
+  // Channel of q30 BAMs
+  Channel
+    .fromPath("${params.accessorydir}/publishedH3K4me3/*.q30.bam")
+    .ifEmpty { exit 1, "q30 BAM files not found or mis-named. Try running pipeline with --getData "}
+    .into {bamQ30Pub_a; bamQ30Pub_b; bamQ30Pub_c}
+
+  //Create CUTnRUN input channels
+  Channel
+       .fromPath("${params.bamdir}/Zc*.q30.bam")
+       .ifEmpty { exit 1, "q30 BAM files not found or mis-named. Try running pipeline with --getData "}
+  		 .set {bamTCinit}
+
+  //Create check for annotation files
+  Channel
+       .fromPath("${params.genomedir}/mm10_genome.fa")
+       .ifEmpty { exit 1, "Genome FASTA file not found or mis-named. Try running pipeline with --getData "}
+  		 .into {genomeFAfile; genomeFAfile_b}
+  }
+//Create timeCourse input channels
+bamTCinit.map { sample -> tuple(file(getGFPbam(sample)),
+                                file(getGFPbai(sample)),
+                                file(getK4m3bam(sample)),
+                                file(getK4m3bai(sample)),
+                                getStrainName(sample),
+                                file(getZcwbai(sample)),
+                                file(getZcwbam(sample))) }
+         .into {bamTC; bamTC_b; bamTCtst}
+
+bamTCtst.subscribe { println "Result: $it" }
 
 def spotBAMs  = bamQ30Pub_a.join(bamQ30Files_a, remainder: true)
 def spotBAMs2 = bamQ30Pub_b.join(bamQ30Files_b, remainder: true)
-
-//Create CUTnRUN input channels
-Channel
-     .fromPath("${params.bamdir}/Zc*.q30.bam")
-     .ifEmpty { exit 1, "q30 BAM files not found or mis-named. Try running pipeline with --getData "}
-     .map { sample -> tuple(file(getGFPbam(sample)), file(getGFPbai(sample)), file(getK4m3bam(sample)), file(getK4m3bai(sample)), getStrainName(sample), file(getZcwbai(sample)),  file(getZcwbam(sample))) }
-		 .into {bamTC; bamTCb}
-
- def getZcwbam( file ) {
-	 def nm="${file.name}"
-   def nRet = nm.replaceFirst(/Zcwpw1/,"${params.bamdir}/Zcwpw1")
-	 println("type = $nRet")
-	 return nRet
- }
-
- def getZcwbai( file ) {
-	 def nm="${file.name}"
-	 def nRet = nm.replaceFirst(/Zcwpw1(.+)bam/,"${params.bamdir}/Zcwpw1\$1bam.bai")
-	 println("type = $nRet")
-	 return nRet
- }
-
- def getGFPbam( file ) {
-   def nm="${file.name}"
-   def nRet = nm.replaceFirst(/Zcwpw1/,"${params.bamdir}/GFP_Control")
-	 println("type = $nRet")
-	 return nRet
- }
-
- def getGFPbai( file ) {
-	   def nm="${file.name}"
-	   def nRet = nm.replaceFirst(/Zcwpw1(.+)bam/,"${params.bamdir}/GFP_Control\$1bam.bai")
-		 println("type = $nRet")
-		 return nRet
-	 }
-
- def getK4m3bam( file ) {
-   def nm="${file.name}"
-   def nRet = nm.replaceFirst(/Zcwpw1/,"${params.bamdir}/H3K4me3")
-	 println("type = $nRet")
-	 return nRet
- }
-
- def getK4m3bai( file ) {
-	   def nm="${file.name}"
-	   def nRet = nm.replaceFirst(/Zcwpw1(.+)bam/,"${params.bamdir}/H3K4me3\$1bam.bai")
-		 println("type = $nRet")
-		 return nRet
-	 }
-
- def getStrainName( file ) {
-   def nm="${file.name}"
-   def nRet = nm.replaceFirst(/Zc.+_(B6xCST|B6).+bam/,"\$1")
-	 println("type = $nRet")
-   return nRet
- }
 
 process getAnnotationFiles {
 
@@ -209,6 +244,7 @@ process getAnnotationFiles {
     publishDir params.outdirAnnot, mode: 'copy', overwrite: true
 
     input:
+    file(fa) from genomeFAfile_b
 
     output:
 		file '*.oneMotif.500bp.bed'            into hotspotOneMotif500bp
@@ -442,6 +478,7 @@ process getSpo11OligoData {
   publishDir params.outdirAnnot, mode: 'copy', overwrite: true
 
   input:
+  file(fa) from genomeFAfile
 
   output:
 	file 'B6_spo11Oligo.bedgraph' into spo11BG
@@ -464,22 +501,22 @@ process getSpo11OligoData {
 if (params.prdm9BG){
 
 	Channel
-		.fromPath("${params.prdm9Dir}/B6_PRDM9ChIPSeq.bedgraph")
+		.fromPath("${params.prdm9dir}/B6_PRDM9ChIPSeq.bedgraph")
 		.ifEmpty { exit 1, "B6_PRDM9ChIPSeq.bedgraph not found or mis-named. Try running without --prdm9BG." }
 		.set {prdm9BG}
 
 	Channel
-		.fromPath("${params.prdm9Dir}/B6_PRDM9_ChIPseq_wT_13dpp_SRR5195586_PE.mm10.bam")
+		.fromPath("${params.prdm9dir}/B6_PRDM9_ChIPseq_wT_13dpp_SRR5195586_PE.mm10.bam")
 		.ifEmpty { exit 1, "B6_PRDM9ChIPSeq BAM not found or mis-named. Try running without --prdm9BG." }
 		.set {prdm9BAM}
 
 	Channel
-		.fromPath("${params.prdm9Dir}/B6_PRDM9_ChIPseq_wT_13dpp_SRR5195586_PE.mm10.bam.bai")
+		.fromPath("${params.prdm9dir}/B6_PRDM9_ChIPseq_wT_13dpp_SRR5195586_PE.mm10.bam.bai")
 		.ifEmpty { exit 1, "B6_PRDM9ChIPSeq BAM INDEX not found or mis-named. Try running without --prdm9BG." }
 		.set {prdm9BAI}
 
 	Channel
-		.fromPath("${params.prdm9Dir}/B6_PRDM9_ChIPseq_wT_13dpp_SRR5195586_PE.mm10.bigwig")
+		.fromPath("${params.prdm9dir}/B6_PRDM9_ChIPseq_wT_13dpp_SRR5195586_PE.mm10.bigwig")
 		.ifEmpty { exit 1, "B6_PRDM9ChIPSeq BIGWIG not found or mis-named. Try running without --prdm9BG." }
 		.set {prdm9BW}
 
@@ -584,7 +621,9 @@ process makeBigWigs {
 	file("*MN.bigwig")  into (bwMN, bwMN_a)
 
   script:
-	stem = bam.name.replaceAll(/.bwaMemPE.mm10.bam/,'')
+  def s1   = bam.name.replaceAll(/.bwaMemPE.mm10.q30.bam/,'_q30.bwaMemPE.mm10.bam')
+	def stem = s1.replaceAll(/.bwaMemPE.mm10.bam/,'')
+
   """
 	bai=`readlink ${bam}`
 	ln -s \$bai".bai" .
@@ -614,6 +653,7 @@ process callZcwpw1Hotspots {
 
   input:
 	set file(bamGFP), file(baiGFP), file(bamK4m3), file(baiK4m3), val(strain), file(baiZCW), file(bamZCW) from bamTC
+  //file(sample) from bamTC
 
   output:
 	file('Zcwpw1*peaks*bed')              into (zcwPk, zcwPk_spot)
@@ -621,6 +661,13 @@ process callZcwpw1Hotspots {
 	file('Zcwpw1*SPoT.txt')               into txtSPOTvals
 
   script:
+  //def bamGFP  = file(getGFPbam(sample))
+  //def naiGFP  = file(getGFPbai(sample))
+  //def bamK4m3 = file(getK4m3bam(sample))
+  //def baiK4m3 = file(getK4m3bai(sample))
+  //def strain  = getStrainName(sample)
+  //def bamZCW  = file(getZcwbam(sample))
+  //def baiZCW  = file(getZcwbai(sample))
 	"""
   #nm="Zcwpw1_${strain}_OLD"
 	#macs2 callpeak -p 0.001 -t ${bamZCW} -c ${bamGFP} -g mm --name \$nm
@@ -663,7 +710,8 @@ process callH3K4me3Peaks {
   publishDir params.outdirPeaks , mode: 'copy', overwrite: true
 
   input:
-	set file(bamGFP), file(baiGFP), file(bamK4m3), file(baiK4m3), val(strain), file(baiZCW), file(bamZCW) from bamTCb
+	set file(bamGFP), file(baiGFP), file(bamK4m3), file(baiK4m3), val(strain), file(baiZCW), file(bamZCW) from bamTC_b
+  //file(sample) from bamTC_b
 
   output:
 	file('H3K4me3*peaks.bed')      into (k4me3Pk, k4me3Pk_spot)
@@ -672,6 +720,13 @@ process callH3K4me3Peaks {
 	val(strain)                    into strains
 
   script:
+  //def bamGFP  = file(getGFPbam(sample))
+  //def naiGFP  = file(getGFPbai(sample))
+  //def bamK4m3 = file(getK4m3bam(sample))
+  //def baiK4m3 = file(getK4m3bai(sample))
+  //def strain  = getStrainName(sample)
+  //def bamZCW  = file(getZcwbam(sample))
+  //def baiZCW  = file(getZcwbai(sample))
   """
     macs2 callpeak -p 0.001 -t ${bamK4m3} -c ${bamGFP} -g mm --name H3K4me3_${strain}
     cut -f1-3 H3K4me3_${strain}_peaks.narrowPeak >H3K4me3_${strain}_peaks.bed
