@@ -156,12 +156,16 @@ if (params.getData){
       input:
 
       output:
-      file('accessoryFiles/bam/*bam')                   into (bamFiles, bamFiles_a, bamFiles_b, bamFilesForQ30)
-      file('accessoryFiles/genomeFiles/*fa')            into mm10FA
-      file('accessoryFiles/genomeFiles/*fa.fai')        into mm10IDX
-      file('accessoryFiles/genomeFiles/mm10_w1k*bed')   into mm10w1ks100
-      file('accessoryFiles/publishedH3K4me3/*.q30.bam') into (bamQ30Pub_a, bamQ30Pub_b, bamQ30Pub_c)
-      file('accessoryFiles')                            into (accFolder)
+      file('accessoryFiles/bam/*bam')                              into (bamFiles, bamFiles_a, bamFiles_b, bamFilesForQ30)
+      file('accessoryFiles/genomeFiles/*fa')                       into mm10FA
+      file('accessoryFiles/genomeFiles/*fa.fai')                   into mm10IDX
+      file('accessoryFiles/genomeFiles/mm10_w1k*bed')              into mm10w1ks100
+      file('accessoryFiles/publishedH3K4me3/*.q30.bam')            into (bamQ30Pub_a, bamQ30Pub_b, bamQ30Pub_c)
+      file('accessoryFiles')                                       into (accFolder)
+      file('accessoryFiles/prdm9CHIPSeq/B6_PRDM9ChIPSeq.bedgraph') into prdm9BG
+      file('accessoryFiles/prdm9CHIPSeq/B6*bam')                   into prdm9BAM
+      file('accessoryFiles/prdm9CHIPSeq/B6*bai')                   into prdm9BAI
+      file('accessoryFiles/prdm9CHIPSeq/B6*bigwig')                into prdm9BW
 
    	  script:
    	  """
@@ -257,10 +261,28 @@ if (params.getData){
   Channel.fromPath("${params.genomedir}/mm10_w1k_s100.bed")
     .set {mm10w1ks100}
 
+  Channel
+		.fromPath("${params.prdm9dir}/B6_PRDM9ChIPSeq.bedgraph")
+		.ifEmpty { exit 1, "B6_PRDM9ChIPSeq.bedgraph not found or mis-named. Try running without --prdm9BG." }
+		.set {prdm9BG}
+
+	Channel
+		.fromPath("${params.prdm9dir}/B6_PRDM9_ChIPseq_wT_13dpp_SRR5195586_PE.mm10.bam")
+		.ifEmpty { exit 1, "B6_PRDM9ChIPSeq BAM not found or mis-named. Try running without --prdm9BG." }
+		.set {prdm9BAM}
+
+	Channel
+		.fromPath("${params.prdm9dir}/B6_PRDM9_ChIPseq_wT_13dpp_SRR5195586_PE.mm10.bam.bai")
+		.ifEmpty { exit 1, "B6_PRDM9ChIPSeq BAM INDEX not found or mis-named. Try running without --prdm9BG." }
+		.set {prdm9BAI}
+
+	Channel
+		.fromPath("${params.prdm9dir}/B6_PRDM9_ChIPseq_wT_13dpp_SRR5195586_PE.mm10.bigwig")
+		.ifEmpty { exit 1, "B6_PRDM9ChIPSeq BIGWIG not found or mis-named. Try running without --prdm9BG." }
+		.set {prdm9BW}
   }
 
 def spotBAMs  = bamQ30Pub_a.join(bamQ30Files_a, remainder: true)
-def spotBAMs2 = bamQ30Pub_b.join(bamQ30Files_b, remainder: true)
 
 process getAnnotationFiles {
 
@@ -541,104 +563,80 @@ process getSpo11OligoData {
  	"""
   }
 
-if (params.prdm9BG){
-
-	Channel
-		.fromPath("${params.prdm9dir}/B6_PRDM9ChIPSeq.bedgraph")
-		.ifEmpty { exit 1, "B6_PRDM9ChIPSeq.bedgraph not found or mis-named. Try running without --prdm9BG." }
-		.set {prdm9BG}
-
-	Channel
-		.fromPath("${params.prdm9dir}/B6_PRDM9_ChIPseq_wT_13dpp_SRR5195586_PE.mm10.bam")
-		.ifEmpty { exit 1, "B6_PRDM9ChIPSeq BAM not found or mis-named. Try running without --prdm9BG." }
-		.set {prdm9BAM}
-
-	Channel
-		.fromPath("${params.prdm9dir}/B6_PRDM9_ChIPseq_wT_13dpp_SRR5195586_PE.mm10.bam.bai")
-		.ifEmpty { exit 1, "B6_PRDM9ChIPSeq BAM INDEX not found or mis-named. Try running without --prdm9BG." }
-		.set {prdm9BAI}
-
-	Channel
-		.fromPath("${params.prdm9dir}/B6_PRDM9_ChIPseq_wT_13dpp_SRR5195586_PE.mm10.bigwig")
-		.ifEmpty { exit 1, "B6_PRDM9ChIPSeq BIGWIG not found or mis-named. Try running without --prdm9BG." }
-		.set {prdm9BW}
-
-	}else{
-		process getPRDM9ChIPSeqData {
-
-		  scratch '/lscratch/$SLURM_JOBID'
-		  clusterOptions ' --gres=lscratch:600 '
-		  echo true
-		  cpus 16
-		  memory "16G"
-
-		  module 'bedtools/2.27.1'
-			module 'minimap2/2.17'
-			module 'sratoolkit/2.9.2'
-			module 'deeptools/3.0.1'
-			module 'picard/2.9.2'
-		  module 'ucsc/388'
-
-		  time { 12.hour }
-		  errorStrategy { 'retry' }
-		  maxRetries 1
-
-		  publishDir params.outdirAnnot, mode: 'copy', overwrite: true
-
-		  input:
-      file(mm10FA)      from mm10FA
-      file(mm10IDX)     from mm10IDX
-      file(mm10w1ks100) from mm10w1ks100
-
-		  output:
-			file 'B6_PRDM9ChIPSeq.bam'       optional true into prdm9BAM
-			file 'B6_PRDM9ChIPSeq.bam.bai'   optional true into prdm9BAI
-			file 'B6_PRDM9ChIPSeq.bedgraph'                into prdm9BG
-			file 'B6_PRDM9ChIPSeq.bigwig'                  into prdm9BW
-			//file 'B6_PRDM9ChIPSeq.peaks.bed'               into prdm9peaks
-
-		 	script:
-		 	"""
-			bam=${params.prdm9}
-			bai=${params.prdm9}".bai"
-
-			if test -f "\$bam"; then
-			  ln -s \$bam prdm9Rep1.bam
-				ln -s \$bai prdm9Rep1.bam.bai
-			else
-			  fasterq-dump SRR5195586 --split-files -o prdm9CHIPSeq_Rep1
-			  #fasterq-dump SRR5195588 --split-files -o prdm9CHIPSeq_Rep2
-
-			  minimap2 -x sr ${mm10FA} prdm9CHIPSeq_Rep1_1.fastq prdm9CHIPSeq_Rep1_2.fastq -a -o prdm9Rep1.sam
-			  java -jar \$PICARDJAR SortSam I=prdm9Rep1.sam O=prdm9Rep1.bam SO=coordinate VALIDATION_STRINGENCY=LENIENT
-			  rm -f prdm9Rep1.sam
-		    samtools index prdm9Rep1.bam
-		  fi
-
-			## GET PEAKS
-			wget ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE93nnn/GSE93955/suppl/GSE93955_CHIP_PRDM9_B6_peaks.bed.gz
-			wget ftp://hgdownload.cse.ucsc.edu/goldenPath/mm9/liftOver/mm9ToMm10.over.chain.gz   -O mm9ToMm10.over.chain.gz
-			gunzip GSE93955_CHIP_PRDM9_B6_peaks.bed.gz
-
-		  liftOver GSE93955_CHIP_PRDM9_B6_peaks.bed  mm9ToMm10.over.chain.gz  GSE93955_CHIP_PRDM9_B6_peaks.mm10.tmp na
-			sort -k1,1 -k2n,2n -k3n,3n GSE93955_CHIP_PRDM9_B6_peaks.mm10.tmp >GSE93955_CHIP_PRDM9_B6_peaks.mm10.bed
-			cat GSE93955_CHIP_PRDM9_B6_peaks.mm10.bed |perl ${params.codedir}/sortBEDByFAI.pl - ${mm10IDX} >GSE93955_CHIP_PRDM9_B6_peaks.mm10gSort.bed
-
-			#intersectBed -a GSE93955_CHIP_PRDM9_B6_peaks.mm10gSort.bed -b prdm9Rep1.bam -c -sorted |grep -P \'^chr[0-9]+\' >B6_PRDM9ChIPSeq.bedgraph
-			mapBed -a GSE93955_CHIP_PRDM9_B6_peaks.mm10gSort.bed -b prdm9Rep1.bam -c 3 -o count -sorted -g ${mm10IDX} |grep -P \'^chr[0-9]+\' >B6_PRDM9ChIPSeq.bedgraph
-
-		 	mv GSE93955_CHIP_PRDM9_B6_peaks.mm10.bed B6_PRDM9ChIPSeq.peaks.bed
-
-		  bw=\${bam/bam/bigwig}
-
-			if test -f "\$bw"; then
-		    cp \$bw B6_PRDM9ChIPSeq.bigwig
-			else
-			  bamCoverage -b prdm9Rep1.bam -o B6_PRDM9ChIPSeq.bigwig --centerReads -p max
-		  fi
-			"""
-		  }
-	  }
+// process getPRDM9ChIPSeqData {
+//
+//   scratch '/lscratch/$SLURM_JOBID'
+//   clusterOptions ' --gres=lscratch:600 '
+//   echo true
+//   cpus 16
+//   memory "16G"
+//
+//   module 'bedtools/2.27.1'
+// 	module 'minimap2/2.17'
+// 	module 'sratoolkit/2.9.2'
+// 	module 'deeptools/3.0.1'
+// 	module 'picard/2.9.2'
+//   module 'ucsc/388'
+//
+//   time { 12.hour }
+//   errorStrategy { 'retry' }
+//   maxRetries 1
+//
+//   publishDir params.outdirAnnot, mode: 'copy', overwrite: true
+//
+//   input:
+//   file(mm10FA)      from mm10FA
+//   file(mm10IDX)     from mm10IDX
+//   file(mm10w1ks100) from mm10w1ks100
+//
+//   output:
+// 	file 'B6_PRDM9ChIPSeq.bam'       optional true into prdm9BAM
+// 	file 'B6_PRDM9ChIPSeq.bam.bai'   optional true into prdm9BAI
+// 	file 'B6_PRDM9ChIPSeq.bedgraph'                into prdm9BG
+// 	file 'B6_PRDM9ChIPSeq.bigwig'                  into prdm9BW
+// 	//file 'B6_PRDM9ChIPSeq.peaks.bed'               into prdm9peaks
+//
+//  	script:
+//  	"""
+// 	bam=${params.prdm9}
+// 	bai=${params.prdm9}".bai"
+//
+// 	if test -f "\$bam"; then
+// 	  ln -s \$bam prdm9Rep1.bam
+// 		ln -s \$bai prdm9Rep1.bam.bai
+// 	else
+// 	  fasterq-dump SRR5195586 --split-files -o prdm9CHIPSeq_Rep1
+// 	  #fasterq-dump SRR5195588 --split-files -o prdm9CHIPSeq_Rep2
+//
+// 	  minimap2 -x sr ${mm10FA} prdm9CHIPSeq_Rep1_1.fastq prdm9CHIPSeq_Rep1_2.fastq -a -o prdm9Rep1.sam
+// 	  java -jar \$PICARDJAR SortSam I=prdm9Rep1.sam O=prdm9Rep1.bam SO=coordinate VALIDATION_STRINGENCY=LENIENT
+// 	  rm -f prdm9Rep1.sam
+//     samtools index prdm9Rep1.bam
+//   fi
+//
+// 	## GET PEAKS
+// 	wget ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE93nnn/GSE93955/suppl/GSE93955_CHIP_PRDM9_B6_peaks.bed.gz
+// 	wget ftp://hgdownload.cse.ucsc.edu/goldenPath/mm9/liftOver/mm9ToMm10.over.chain.gz   -O mm9ToMm10.over.chain.gz
+// 	gunzip GSE93955_CHIP_PRDM9_B6_peaks.bed.gz
+//
+//   liftOver GSE93955_CHIP_PRDM9_B6_peaks.bed  mm9ToMm10.over.chain.gz  GSE93955_CHIP_PRDM9_B6_peaks.mm10.tmp na
+// 	sort -k1,1 -k2n,2n -k3n,3n GSE93955_CHIP_PRDM9_B6_peaks.mm10.tmp >GSE93955_CHIP_PRDM9_B6_peaks.mm10.bed
+// 	cat GSE93955_CHIP_PRDM9_B6_peaks.mm10.bed |perl ${params.codedir}/sortBEDByFAI.pl - ${mm10IDX} >GSE93955_CHIP_PRDM9_B6_peaks.mm10gSort.bed
+//
+// 	#intersectBed -a GSE93955_CHIP_PRDM9_B6_peaks.mm10gSort.bed -b prdm9Rep1.bam -c -sorted |grep -P \'^chr[0-9]+\' >B6_PRDM9ChIPSeq.bedgraph
+// 	mapBed -a GSE93955_CHIP_PRDM9_B6_peaks.mm10gSort.bed -b prdm9Rep1.bam -c 3 -o count -sorted -g ${mm10IDX} |grep -P \'^chr[0-9]+\' >B6_PRDM9ChIPSeq.bedgraph
+//
+//  	mv GSE93955_CHIP_PRDM9_B6_peaks.mm10.bed B6_PRDM9ChIPSeq.peaks.bed
+//
+//   bw=\${bam/bam/bigwig}
+//
+// 	if test -f "\$bw"; then
+//     cp \$bw B6_PRDM9ChIPSeq.bigwig
+// 	else
+// 	  bamCoverage -b prdm9Rep1.bam -o B6_PRDM9ChIPSeq.bigwig --centerReads -p max
+//   fi
+// 	"""
+//   }
 
 process makeBigWigs {
   scratch '/lscratch/$SLURM_JOBID'
