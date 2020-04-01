@@ -156,9 +156,7 @@ if (params.getData){
       input:
 
       output:
-      file('accessoryFiles/bam/*bam')                   into (bamFiles, bamFiles_a, bamFiles_b)
-      file('accessoryFiles/bam/*q30.bam')               into (bamQ30Files, bamQ30Files_a, bamQ30Files_b)
-      file('accessoryFiles/bam/Zc*.q30.bam')            into bamTCinit
+      file('accessoryFiles/bam/*bam')                   into (bamFiles, bamFiles_a, bamFiles_b, bamFilesForQ30)
       file('accessoryFiles/genomeFiles/*fa')            into mm10FA
       file('accessoryFiles/genomeFiles/*fa.fai')        into mm10IDX
       file('accessoryFiles/genomeFiles/mm10_w1k*bed')   into mm10w1ks100
@@ -168,10 +166,43 @@ if (params.getData){
    	  script:
    	  """
       wget http://hpc.nih.gov/~brickkm/zcwpw1/zcwpw1accessoryFiles.tar.gz
-      tar -zxvf zcwpw1accessoryFiles.tar.gz
+      tar -zxvf zcwpw1accessoryFiles.tar.gz >o.o 2>e.e
       """
     }
 
+    process getQ30BAMs {
+        scratch '/lscratch/$SLURM_JOBID'
+        clusterOptions ' --gres=lscratch:400 '
+        echo true
+        cpus 4
+        memory "8G"
+
+      	module 'samtools/1.9'
+
+        tag {bam}
+
+     	  time { 4.hour }
+        errorStrategy { 'retry' }
+        maxRetries 1
+
+        publishDir params.bamdir, mode: 'copy', overwrite: true
+
+        input:
+        each file(bam) from bamFilesForQ30
+
+        output:
+        file('*q30.bam')               into (bamQ30Files, bamQ30Files_a, bamQ30Files_b)
+        file('*q30.bam.bai')           into (bamQ30IDX)
+        file('Zc*.q30.bam')            into bamTCinit
+
+     	  script:
+        """
+        b="${bam}"
+        q30bam=\${b/bam/q30.bam}
+        samtools view -q 30 -hb ${bam} >\$q30bam
+        samtools index \$q30bam
+        """
+      }
     //Create timeCourse input channels
     bamTCinit.flatMap()
              .map { sample -> tuple(file(getGFPbam(sample)),
