@@ -195,9 +195,9 @@ if (params.getData){
         each file(bam) from bamFilesForQ30
 
         output:
-        file('*q30.bam')               into (bamQ30Files, bamQ30Files_a, bamQ30Files_b)
-        file('*q30.bam.bai')           into (bamQ30IDX)
-        file('Zc*.q30.bam')            into bamTCinit
+        file('*q30.bam')                  into (bamQ30Files, bamQ30Files_a, bamQ30Files_b)
+        file('*q30.bam.bai')              into bamQ30IDX
+        file('Zc*.q30.bam') optional true into bamTCinit
 
      	  script:
         """
