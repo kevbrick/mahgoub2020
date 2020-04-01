@@ -34,10 +34,6 @@ params.mem            = "16G"
 params.debugmode      = false
 
 //output and tempory directories
-//params.codeRdir         = "${params.accessorydir}/scripts/R"
-//params.datadir          = "${params.accessorydir}/data/"
-//params.genomedir        = "${params.accessorydir}/genomeFiles/"
-//params.annotationdir    = "${params.accessorydir}/annotation/"
 params.projectdir      	      = "./"
 
 params.accessorydir	          = "${params.projectdir}/accessoryFiles"
@@ -59,10 +55,6 @@ params.outdirStrengthCompFigs = "${params.outdir}/figs/strengthComparison"
 
 params.prdm9                  = "thisfiledoesnotexist.ghost"
 params.prdm9BG                = ""
-
-def mm10FA             	      = "${params.genomedir}/mm10_genome.fa"
-def mm10IDX     	            = "${params.genomedir}/mm10_genome.fa.fai"
-def mm10w1ks100               = "${params.genomedir}/mm10_w1k_s100.bed"
 
 params.hmWidth     	          = 1000
 params.wcWidth         	      = 500
@@ -144,7 +136,7 @@ if (params.getData){
   process getAccessoryFiles {
 
       scratch '/lscratch/$SLURM_JOBID'
-      clusterOptions ' --gres=lscratch:200 '
+      clusterOptions ' --gres=lscratch:400 '
       echo true
       cpus 1
       memory "8G"
@@ -153,21 +145,23 @@ if (params.getData){
       errorStrategy { 'retry' }
       maxRetries 1
 
-
-      publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/bam/*'
-      publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/genomeFiles/*'
-      publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/publishedH3K4me3/*'
-      publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/prdm9CHIPSeq/*'
-      publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/nxfConfig/*'
-      publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/scripts/*'
-      publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/PRDM9motif/*'
+      publishDir params.projectdir, mode: 'copy', overwrite: true, pattern: 'accessoryFiles/*'
+      // publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/bam/*'
+      // publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/genomeFiles/*'
+      // publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/publishedH3K4me3/*'
+      // publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/prdm9CHIPSeq/*'
+      // publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/nxfConfig/*'
+      // publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/scripts/*'
+      // publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/PRDM9motif/*'
       input:
 
       output:
       file('accessoryFiles/bam/*bam')                   into (bamFiles, bamFiles_a, bamFiles_b)
       file('accessoryFiles/bam/*q30.bam')               into (bamQ30Files, bamQ30Files_a, bamQ30Files_b)
       file('accessoryFiles/bam/Zc*.q30.bam')            into bamTCinit
-      file('accessoryFiles/genome/*fa')                 into (genomeFAfile, genomeFAfile_b)
+      file('accessoryFiles/genomeFiles/*fa')            into mm10FA
+      file('accessoryFiles/genomeFiles/*fa.fai')        into mm10IDX
+      file('accessoryFiles/genomeFiles/mm10_w1k*bed')   into mm10w1ks100
       file('accessoryFiles/publishedH3K4me3/*.q30.bam') into (bamQ30Pub_a, bamQ30Pub_b, bamQ30Pub_c)
       file('accessoryFiles')                            into (accFolder)
 
@@ -177,6 +171,17 @@ if (params.getData){
       tar -zxvf zcwpw1accessoryFiles.tar.gz
       """
     }
+
+    //Create timeCourse input channels
+    bamTCinit.flatMap()
+             .map { sample -> tuple(file(getGFPbam(sample)),
+                                    file(getGFPbai(sample)),
+                                    file(getK4m3bam(sample)),
+                                    file(getK4m3bai(sample)),
+                                    getStrainName(sample),
+                                    file(getZcwbai(sample)),
+                                    file(getZcwbam(sample))) }
+             .into {bamTC; bamTC_b}
 }else{
   // Channel of BAMs
   Channel
@@ -207,18 +212,21 @@ if (params.getData){
        .fromPath("${params.genomedir}/mm10_genome.fa")
        .ifEmpty { exit 1, "Genome FASTA file not found or mis-named. Try running pipeline with --getData "}
   		 .into {genomeFAfile; genomeFAfile_b}
-  }
-//Create timeCourse input channels
-bamTCinit.map { sample -> tuple(file(getGFPbam(sample)),
-                                file(getGFPbai(sample)),
-                                file(getK4m3bam(sample)),
-                                file(getK4m3bai(sample)),
-                                getStrainName(sample),
-                                file(getZcwbai(sample)),
-                                file(getZcwbam(sample))) }
-         .into {bamTC; bamTC_b; bamTCtst}
 
-bamTCtst.subscribe { println "Result: $it" }
+   //Create timeCourse input channels
+   bamTCinit.map { sample -> tuple(file(getGFPbam(sample)),file(getGFPbai(sample)),file(getK4m3bam(sample)),file(getK4m3bai(sample)),getStrainName(sample),file(getZcwbai(sample)),file(getZcwbam(sample))) }
+            .into {bamTC; bamTC_b}
+
+  Channel.fromPath("${params.genomedir}/mm10_genome.fa")
+    .set {mm10FA}
+
+  Channel.fromPath("${params.genomedir}/mm10_genome.fa.fai")
+    .set {mm10IDX}
+
+  Channel.fromPath("${params.genomedir}/mm10_w1k_s100.bed")
+    .set {mm10w1ks100}
+
+  }
 
 def spotBAMs  = bamQ30Pub_a.join(bamQ30Files_a, remainder: true)
 def spotBAMs2 = bamQ30Pub_b.join(bamQ30Files_b, remainder: true)
@@ -244,7 +252,9 @@ process getAnnotationFiles {
     publishDir params.outdirAnnot, mode: 'copy', overwrite: true
 
     input:
-    file(fa) from genomeFAfile_b
+    file(mm10FA)      from mm10FA
+    file(mm10IDX)     from mm10IDX
+    file(mm10w1ks100) from mm10w1ks100
 
     output:
 		file '*.oneMotif.500bp.bed'            into hotspotOneMotif500bp
@@ -478,7 +488,9 @@ process getSpo11OligoData {
   publishDir params.outdirAnnot, mode: 'copy', overwrite: true
 
   input:
-  file(fa) from genomeFAfile
+  file(mm10FA)
+  file(mm10IDX)
+  file(mm10w1ks100)
 
   output:
 	file 'B6_spo11Oligo.bedgraph' into spo11BG
@@ -543,6 +555,9 @@ if (params.prdm9BG){
 		  publishDir params.outdirAnnot, mode: 'copy', overwrite: true
 
 		  input:
+      file(mm10FA)      from mm10FA
+      file(mm10IDX)     from mm10IDX
+      file(mm10w1ks100) from mm10w1ks100
 
 		  output:
 			file 'B6_PRDM9ChIPSeq.bam'       optional true into prdm9BAM
@@ -614,22 +629,26 @@ process makeBigWigs {
   publishDir params.outdirBW , mode: 'copy', overwrite: true, pattern: '*bigwig'
 
   input:
-  file(bam) from bamFiles
+  each file(bam) from bamFiles
 
   output:
   file("*ALL.bigwig") into bwAll
 	file("*MN.bigwig")  into (bwMN, bwMN_a)
 
   script:
-  def s1   = bam.name.replaceAll(/.bwaMemPE.mm10.q30.bam/,'_q30.bwaMemPE.mm10.bam')
-	def stem = s1.replaceAll(/.bwaMemPE.mm10.bam/,'')
+  //def s1   = bam.name.replaceAll(/.bwaMemPE.mm10.q30.bam/,'_q30.bwaMemPE.mm10.bam')
+	//def stem = s1.replaceAll(/.bwaMemPE.mm10.bam/,'')
 
   """
+  s1=`basename ${bam}`
+  s2=\${s1/.bwaMemPE.mm10.q30.bam/_q30.bwaMemPE.mm10.bam}
+  stem=\${s2/.bwaMemPE.mm10.bam/}
+
 	bai=`readlink ${bam}`
 	ln -s \$bai".bai" .
 
-	bamCoverage -b ${bam} -o ${stem}.ALL.bigwig --centerReads -p 12
-	bamCoverage -b ${bam} -o ${stem}.MN.bigwig  --centerReads -p 12 --MNase --centerReads
+	bamCoverage -b ${bam} -o \$stem".ALL.bigwig" --centerReads -p 12
+	bamCoverage -b ${bam} -o \$stem".MN.bigwig"  --centerReads -p 12 --MNase --centerReads
   """
   }
 
@@ -653,7 +672,9 @@ process callZcwpw1Hotspots {
 
   input:
 	set file(bamGFP), file(baiGFP), file(bamK4m3), file(baiK4m3), val(strain), file(baiZCW), file(bamZCW) from bamTC
-  //file(sample) from bamTC
+  file(mm10FA)      from mm10FA
+  file(mm10IDX)     from mm10IDX
+  file(mm10w1ks100) from mm10w1ks100
 
   output:
 	file('Zcwpw1*peaks*bed')              into (zcwPk, zcwPk_spot)
@@ -711,7 +732,9 @@ process callH3K4me3Peaks {
 
   input:
 	set file(bamGFP), file(baiGFP), file(bamK4m3), file(baiK4m3), val(strain), file(baiZCW), file(bamZCW) from bamTC_b
-  //file(sample) from bamTC_b
+  file(mm10FA)      from mm10FA
+  file(mm10IDX)     from mm10IDX
+  file(mm10w1ks100) from mm10w1ks100
 
   output:
 	file('H3K4me3*peaks.bed')      into (k4me3Pk, k4me3Pk_spot)
@@ -1138,6 +1161,10 @@ process checkZcwpw1Vstrength {
 	file(k36m3B6S)   from h3k36m3B6Spo11
 	file(prdm9BG)    from prdm9BG
 
+  file(mm10FA)      from mm10FA
+  file(mm10IDX)     from mm10IDX
+  file(mm10w1ks100) from mm10w1ks100
+
   output:
 	file('allData.tab')  into strengthTable
 	file('*png')         into strengthVZcwPNG
@@ -1238,6 +1265,10 @@ process getSPOTvals {
 	file (tes)     from gencodeTESBED_spot
 	file (cgi)     from mouseCGIBED_spot
   file (bam)     from spotBAMs
+
+  file(mm10FA)      from mm10FA
+  file(mm10IDX)     from mm10IDX
+  file(mm10w1ks100) from mm10w1ks100
 
   output:
 	file('*SPoT.txt') into allSPOTtxts
