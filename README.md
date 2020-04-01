@@ -30,11 +30,10 @@ SLURM_JOBID global variable for each HPC job.
 
 ### RUN ON SLURM CLUSTER
 ```
-nextflow run -c accessoryFiles/config/nextflow.config \
+nextflow run -c accessoryFiles/nxfConfig/nextflow.config \
     Zcwpw1_CutNRunPipe.nf \
     --outdir output \
     --getData \
-    --prdm9BG accessoryFiles/B6_PRDM9ChIPSeq.bedgraph \
     --projectdir `pwd` \
     -with-report Zcwpw1Pipeline.nxfReport.html \
     -with-trace Zcwpw1Pipeline.nxfTrace.html \
@@ -43,11 +42,10 @@ nextflow run -c accessoryFiles/config/nextflow.config \
 
 ### RUN ON LOCAL MACHINE
 ```
-nextflow run -c accessoryFiles/config/nextflow.local.config \
+nextflow run -c accessoryFiles/nxfConfig/nextflow.local.config \
     Zcwpw1_CutNRunPipe.nf \
     --outdir output \
-     --getData \
-    --prdm9BG accessoryFiles/B6_PRDM9ChIPSeq.bedgraph \
+    --getData \
     --projectdir `pwd` \
     -with-report Zcwpw1Pipeline.nxfReport.html \
     -with-trace Zcwpw1Pipeline.nxfTrace.html \
