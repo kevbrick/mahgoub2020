@@ -146,13 +146,7 @@ if (params.getData){
       maxRetries 1
 
       publishDir params.projectdir, mode: 'copy', overwrite: true, pattern: 'accessoryFiles/*'
-      // publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/bam/*'
-      // publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/genomeFiles/*'
-      // publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/publishedH3K4me3/*'
-      // publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/prdm9CHIPSeq/*'
-      // publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/nxfConfig/*'
-      // publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/scripts/*'
-      // publishDir params.projectdir, mode: 'move', overwrite: true, pattern: 'accessoryFiles/PRDM9motif/*'
+
       input:
 
       output:
@@ -161,6 +155,7 @@ if (params.getData){
       file('accessoryFiles/genomeFiles/*fa.fai')                   into mm10IDX
       file('accessoryFiles/genomeFiles/mm10_w1k*bed')              into mm10w1ks100
       file('accessoryFiles/publishedH3K4me3/*.q30.bam')            into (bamQ30Pub_a, bamQ30Pub_b, bamQ30Pub_c)
+      file('accessoryFiles/publishedH3K4me3/*.q30.bigwig')         into h3k4m312dppBIGWIG
       file('accessoryFiles')                                       into (accFolder)
       file('accessoryFiles/prdm9CHIPSeq/B6_PRDM9ChIPSeq.bedgraph') into prdm9BG
       file('accessoryFiles/prdm9CHIPSeq/B6*bam')                   into prdm9BAM
@@ -235,6 +230,12 @@ if (params.getData){
     .fromPath("${params.accessorydir}/publishedH3K4me3/*.q30.bam")
     .ifEmpty { exit 1, "q30 BAM files not found or mis-named. Try running pipeline with --getData "}
     .into {bamQ30Pub_a; bamQ30Pub_b; bamQ30Pub_c}
+
+    // Channel of q30 BAMs
+    Channel
+      .fromPath("${params.accessorydir}/publishedH3K4me3/*.q30.bigwig")
+      .ifEmpty { exit 1, "q30 BIGWIG file not found or mis-named. Try running pipeline with --getData "}
+      .set { h3k4m312dppBIGWIG }
 
   //Create CUTnRUN input channels
   Channel
@@ -898,6 +899,7 @@ process makeHeatmaps{
   file (tss)     from tssBEDd
   file (tes)     from gencodeTESBED_a
   file (cgi)     from mouseCGIBED_a
+  file (h3k4m312dppBIGWIG)
   //file (tss)     from refseqTSSb
 
   output:
@@ -908,9 +910,6 @@ process makeHeatmaps{
   script:
 
   """
-  #!/bin/bash
-  ln -s ${params.accessorydir}/publishedH3K4me3/H3K4m*q30.bigwig .
-
   computeMatrix reference-point -R singleMotifhotspots_with_Zcwpw1_peak_${strain}.bed singleMotifhotspots_without_Zcwpw1_peak_${strain}.bed \
   -a ${params.hmWidth} -b ${params.hmWidth} \
   -S Zcwpw1_${strain}.MN.bigwig H3K4me3_${strain}.MN.bigwig GFP_Control_${strain}.MN.bigwig \
