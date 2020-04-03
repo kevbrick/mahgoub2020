@@ -1167,7 +1167,7 @@ process checkZcwpw1Vstrength {
   cpus 4
   memory '16g'
 
-  time { 0.75.hour }
+  time { 3.hour }
 
   tag {strain}
 
@@ -1322,7 +1322,7 @@ process gatherSPOTvals {
   cpus 1
   memory '16g'
 
-  time { 0.2.hour }
+  time { 1.hour }
 
   module 'R/3.5.2'
 
