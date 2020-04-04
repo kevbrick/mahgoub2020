@@ -709,7 +709,6 @@ process callZcwpw1Hotspots {
   output:
 	file('Zcwpw1*peaks.bed')              into (zcwPk, zcwPk_spot)
 	file('Zcwpw1*peaks*bedgraph')         into (zcwBG, zcwBG_a, zcwBG_b)
-  file('Zcwpw1*peaks.250*bed*')         into (zcw250)
 	file('Zcwpw1*SPoT.txt')               into txtSPOTvals
 
   script:
@@ -733,10 +732,10 @@ process callZcwpw1Hotspots {
 	sortBed -g ${mm10IDX}	-i \$nm"_peaks.bed" >\$nm"_peaks.gSort.bed"
 
 	slopBed -i \$nm"_peaks.bed" -g ${mm10IDX} -l -0.5 -r -0.5 -pct |
-  slopBed -i - -g ${mm10IDX} -l 250 -r 250 |mergeBed -i - -c 3 -o count >\$nm"_peaks.250bpMerge.bed"
+  #slopBed -i - -g ${mm10IDX} -l 250 -r 250 |mergeBed -i - -c 3 -o count >\$nm"_peaks.250bpMerge.bed"
 
 	intersectBed -a \$nm"_peaks.gSort.bed" -b ${bamZCW} -c -sorted -g ${mm10IDX} |sort -k1,1 -k2n,2n >\$nm"_peaks.bedgraph"
-	intersectBed -a \$nm"_peaks.gSort.bed" -b ${bamZCW} -c -sorted -g ${mm10IDX} |sort -k1,1 -k2n,2n >\$nm"_peaks.250bpMerge.bedgraph"
+	#intersectBed -a \$nm"_peaks.gSort.bed" -b ${bamZCW} -c -sorted -g ${mm10IDX} |sort -k1,1 -k2n,2n >\$nm"_peaks.250bpMerge.bedgraph"
 
   bash ${params.codedir}/getSignalPortionOfTagsFromBAM.sh ${bamZCW} \$nm"_peaks.bedgraph" ${mm10IDX} >\$nm".SPoT.txt"
 
@@ -1191,7 +1190,6 @@ process checkZcwpw1Vstrength {
 	file(k36m3B6)    from h3k36m3B6
 	file(k36m3B6S)   from h3k36m3B6Spo11
 	file(prdm9BG)    from prdm9BG
-  file(zcw250)     from zcw250
 
   file(mm10FA)      from mm10FA
   file(mm10IDX)     from mm10IDX
@@ -1244,7 +1242,7 @@ process checkZcwpw1Vstrength {
   mapBed -a BrickEtAlTable_2018.bed -b h3k4m3Lep.recombMetrics.bedgraph    -c 4 -o sum |sort -k1,1 -k2n,2n |cut -f4 |perl -pi -e 's/^\\.\$/0/' >>h3k4m3Lep.OL
   mapBed -a BrickEtAlTable_2018.bed -b h3k4m3Zyg.recombMetrics.bedgraph    -c 4 -o sum |sort -k1,1 -k2n,2n |cut -f4 |perl -pi -e 's/^\\.\$/0/' >>h3k4m3Zyg.OL
   mapBed -a BrickEtAlTable_2018.bed -b Zcwpw1_B6_peaks.bedgraph            -c 4 -o sum |sort -k1,1 -k2n,2n |cut -f4 |perl -pi -e 's/^\\.\$/0/' >>zcwpw1HS.OL
-	mapBed -a BrickEtAlTable_2018.bed -b Zcwpw1_B6_peaks.250bpMerge.bedgraph -c 4 -o sum |sort -k1,1 -k2n,2n |cut -f4 |perl -pi -e 's/^\\.\$/0/' >>zcwpw1HS250.OL
+	#mapBed -a BrickEtAlTable_2018.bed -b Zcwpw1_B6_peaks.250bpMerge.bedgraph -c 4 -o sum |sort -k1,1 -k2n,2n |cut -f4 |perl -pi -e 's/^\\.\$/0/' >>zcwpw1HS250.OL
 
 	sort -k1,1 -k2n,2n ${k36m3B6}  >k36m3.bedgraph
 	sort -k1,1 -k2n,2n ${k36m3B6S} >k36m3S11.bedgraph
