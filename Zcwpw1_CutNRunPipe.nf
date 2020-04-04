@@ -1184,6 +1184,8 @@ process checkZcwpw1Vstrength {
 	file(zcwBG)      from zcwBG_a.collect()
 
   file(bam)        from bamFiles_a.collect()
+  file(bQ30)       from bamQ30Files_b.collect()
+  file(idx30)      from bamQ30IDX.collect()
 	file(k4me3BG)    from k4me3BG_a.collect()
 	file(k36m3B6)    from h3k36m3B6
 	file(k36m3B6S)   from h3k36m3B6Spo11
@@ -1274,7 +1276,7 @@ process getSPOTvals {
   cpus 4
   memory '16g'
 
-  time { 2.hour }
+  time { 3.hour }
 
 	tag {bam}
 
