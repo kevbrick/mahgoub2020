@@ -1231,7 +1231,7 @@ process checkZcwpw1Vstrength {
   echo 'h3k4m3Zyg'     >h3k4m3Zyg.OL
   echo 'zcwpw1'        >zcwpw1.OL
   echo 'zcwpw1HS'      >zcwpw1HS.OL
-	echo 'zcwpw1HS250'   >zcwpw1HS250.OL
+	#echo 'zcwpw1HS250'   >zcwpw1HS250.OL
 	echo 'h3k4m3CUTnRUN' >h3k4m3CUTnRUN.OL
 	echo 'h3k4m3MM'      >h3k4m3MM.OL
 	echo 'h3k36m3'       >h3k36m3WT.OL
