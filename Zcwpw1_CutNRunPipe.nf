@@ -18,7 +18,7 @@ if (params.help) {
   log.info " "
   log.info "================================================================================================================="
   log.info "Required Arguments:"
-	log.info " --projectdir    default = ."
+  log.info " --projectdir    default = ."
   log.info " --bamdir        BAM folder (default = accessoryFiles/bam)"
   log.info " "
   log.info "Output Arguments"
@@ -162,9 +162,11 @@ if (params.getData){
       file('accessoryFiles/prdm9CHIPSeq/B6*bai')                   into prdm9BAI
       file('accessoryFiles/prdm9CHIPSeq/B6*bigwig')                into prdm9BW
 
-   	  script:
-   	  """
-      wget http://hpc.nih.gov/~brickkm/zcwpw1/zcwpw1accessoryFiles.tar.gz
+      script:
+      """
+      #KB updated link after we obtained doi for dataset (https://doi.org/10.5281/zenodo.3739826)
+      #wget http://hpc.nih.gov/~brickkm/zcwpw1/zcwpw1accessoryFiles.tar.gz
+      wget https://zenodo.org/record/3739826/files/zcwpw1accessoryFiles.tar.gz
       tar -zxvf zcwpw1accessoryFiles.tar.gz >o.o 2>e.e
       """
     }
